@@ -102,7 +102,7 @@ public:
 
   ftxui::Element Render() override {
     return ftxui::hbox({
-      ftxui::text(":"),
+      ftxui::text("/"),
       m_input->Render()
     });
   }
@@ -258,7 +258,7 @@ public:
         switch_mode(Mode::VIEW);
         return true;
       }
-    } else if (event == Event::Character(':')) {
+    } else if (event == Event::Character('/')) {
       if (m_mode != Mode::COMMAND) {
         switch_mode(Mode::COMMAND);
         return true;

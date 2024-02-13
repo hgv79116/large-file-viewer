@@ -11,9 +11,9 @@
 
 class MessageWindow final : public ftxui::ComponentBase {
 public:
-  ftxui::Element
-  Render() override {
-    return get_formatted_message();
+  ftxui::Element Render() override {
+    using namespace ftxui;
+    return get_formatted_message() | ftxui::size(WidthOrHeight::HEIGHT, Constraint::GREATER_THAN, 2);
   }
 
   bool
@@ -76,17 +76,17 @@ private:
     }
 
     if (m_displayed_message->type == MessageType::ERROR) {
-      return text("Error: " + m_displayed_message->content + ". Press Enter to continue.")
+      return paragraph("Error: " + m_displayed_message->content + ". Press Escape to continue.")
         | color(Color::Red);
     }
 
     if (m_displayed_message->type == MessageType::WARNING) {
-      return text("Warning: " + m_displayed_message->content + ". Press Enter to continue.")
+      return paragraph("Warning: " + m_displayed_message->content + ". Press Escape to continue.")
         | color(Color::Yellow);
     }
 
     // Info
-    return text(m_displayed_message->content) | color(Color::Blue);
+    return paragraph(m_displayed_message->content) | color(Color::Blue);
   }
 
 
@@ -281,14 +281,14 @@ public:
   ftxui::Element Render() override {
     if (m_mode == Mode::VIEW) {
       // View mode
-      return ftxui::vbox({m_edit_window->Render(), m_message_window->Render()});
+      return ftxui::vbox({m_edit_window->Render()});
     } else {
       // Command mode
       return ftxui::vbox({
         m_edit_window->Render(),
         m_command_window->Render(),
         m_message_window->Render()
-        });
+      });
     }
   }
 
@@ -346,7 +346,7 @@ private:
         }
       }
     } else {
-      m_message_window->error("No such message: " + command);
+      m_message_window->error("No such command: " + command);
     }
   }
 };

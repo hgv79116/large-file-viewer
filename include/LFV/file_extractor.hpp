@@ -1,30 +1,39 @@
-#include <string>
+#include <LFV/lfv_exception.hpp>
+#include <deque>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <deque>
+#include <limits>
+#include <string>
 #include <vector>
-#include <filesystem>
 
 class FileExtractor {
 public:
-  FileExtractor(std::string fpath): m_in(fpath) {
-    m_end = std::filesystem::file_size(std::filesystem::path(fpath));
+  FileExtractor(std::string fpath) {
+    // Open with exception thrown if fail
+    m_in.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    m_in.open(fpath);
+
+    m_in.seekg(0, std::ios_base::end);
+    m_end = m_in.tellg();
+    m_in.seekg(0, std::ios_base::beg);
+    m_in.clear();
   }
 
-  std::streampos get_end() { return m_end; }
+  auto get_end() const -> std::streampos { return m_end; }
 
-  char getc(std::streampos pos) {
+  auto getc(std::streampos pos) -> int {
     m_in.clear();
     m_in.seekg(pos);
     return m_in.get();
   }
 
-  std::streampos find_first_of(char target, std::streampos pos) {
+  auto find_first_of(char target, std::streampos pos) -> std::streampos {
     m_in.clear();
     m_in.seekg(pos);
 
-    while(m_in.tellg() < m_end && m_in.peek() != target) {
-      m_in.seekg(1, m_in.cur);
+    while (m_in.tellg() < m_end && m_in.peek() != target) {
+      m_in.seekg(1, std::ios_base::cur);
     }
 
     if (m_in.peek() == target) {
@@ -34,13 +43,13 @@ public:
     return -1;
   }
 
-  std::streampos find_last_of(char target, std::streampos pos) {
+  auto find_last_of(char target, std::streampos pos) -> std::streampos {
     m_in.clear();
     m_in.seekg(pos);
 
-    while(m_in.tellg() > 0 && m_in.peek() != target) {
+    while (m_in.tellg() > 0 && m_in.peek() != target) {
       // Some buffers do not support unget
-      m_in.seekg(-1, m_in.cur);
+      m_in.seekg(-1, std::ios_base::cur);
     }
 
     if (m_in.peek() == target) {
@@ -50,14 +59,14 @@ public:
     return -1;
   }
 
-  std::string slice(std::streampos begin, std::streampos end) {
+  auto slice(std::streampos begin, std::streampos end) -> std::string {
     m_in.clear();
     m_in.seekg(begin);
 
     std::string ret;
     while (m_in.tellg() < end) {
       ret.push_back(m_in.peek());
-      m_in.seekg(1, m_in.cur);
+      m_in.seekg(1, std::ios_base::cur);
     }
 
     return ret;
@@ -80,19 +89,19 @@ public:
 
   FileLineExtractor(std::string fpath) : m_file_extractor(fpath) {}
 
-  std::streampos get_end() { return m_file_extractor.get_end(); }
+  auto get_end() const -> std::streampos { return m_file_extractor.get_end(); }
 
-  std::streampos get_line_begin(std::streampos pos) {
+  auto get_line_begin(std::streampos pos) -> std::streampos {
     auto prev_line_end = m_file_extractor.find_last_of('\n', pos - (std::streamoff)1);
     if (prev_line_end == -1) {
       // This is the first line
       return 0;
     }
 
-    return prev_line_end + (std::streamoff) 1;
+    return prev_line_end + (std::streamoff)1;
   }
 
-  std::streampos get_line_end(std::streampos pos) {
+  auto get_line_end(std::streampos pos) -> std::streampos {
     auto this_end_line = m_file_extractor.find_first_of('\n', pos);
 
     if (this_end_line == -1) {
@@ -101,48 +110,45 @@ public:
     }
 
     // Includes the end of line character
-    return this_end_line + (std::streamoff) 1;
+    return this_end_line + (std::streamoff)1;
   }
 
-  FileSegment get_line_containing(std::streampos pos) {
+  auto get_line_containing(std::streampos pos) -> FileSegment {
     auto line_begin = get_line_begin(pos);
     auto line_end = get_line_end(pos);
 
     return {line_begin, line_end, m_file_extractor.slice(line_begin, line_end)};
   }
 
-  FileSegment get_line_from(std::streampos line_begin) {
+  auto get_line_from(std::streampos line_begin) -> FileSegment {
     auto line_end = get_line_end(line_begin);
     return {line_begin, line_end, m_file_extractor.slice(line_begin, line_end)};
   }
 
-private :
+private:
   FileExtractor m_file_extractor;
 };
 
 class EditWindowExtractor {
 public:
-  EditWindowExtractor(std::string fpath):
-    m_fpath(fpath),
-    m_file_line_extractor(fpath),
-    m_width(1),
-    m_height(1),
-    m_anchor(0),
-    m_line_offset(0) {
+  EditWindowExtractor(std::string fpath)
+      : m_fpath(fpath),
+        m_file_line_extractor(fpath),
+        m_size(std::filesystem::file_size(std::filesystem::path(fpath))) {
     load_initial_file_content();
   }
 
   void set_size(int width, int height) {
     m_width = width;
     m_height = height;
-    m_anchor = get_begin();
+    m_anchor = get_window_begin();
 
     reset();
 
     load_initial_file_content();
   }
 
-  std::string get_fpath() { return m_fpath; }
+  auto get_fpath() -> std::string { return m_fpath; }
 
   void move_to(std::streampos pos) {
     m_anchor = pos;
@@ -152,17 +158,19 @@ public:
     load_initial_file_content();
   }
 
-  int get_size() { return m_file_line_extractor.get_end(); }
+  auto get_size() const -> std::uintmax_t { return m_size; }
 
-  bool can_move_down() {
-    if (m_line_offset + m_height < (int)m_splitted_lines.size()) {
+  auto get_end() const -> std::streampos { return m_file_line_extractor.get_end(); }
+
+  auto can_move_down() -> bool {
+    if (m_line_offset + m_height < m_splitted_lines.size()) {
       return true;
     }
 
     return can_extract_next_raw_line();
   }
 
-  bool can_move_up() {
+  auto can_move_up() -> bool {
     if (m_line_offset > 0) {
       return true;
     }
@@ -171,7 +179,7 @@ public:
   }
 
   void move_down() {
-    if (m_line_offset + m_height >= (int)m_splitted_lines.size()) {
+    if (m_line_offset + m_height >= m_splitted_lines.size()) {
       add_next_raw_line();
     }
 
@@ -189,33 +197,34 @@ public:
     cut_redundant_back_lines();
   }
 
-  std::vector<std::string> get_lines() {
-    auto end_line_offset
-        = std::min(m_line_offset + m_height, (line_offset_t)m_splitted_lines.size());
+  auto get_lines() -> std::vector<std::string> {
+    auto end_line_offset = std::min(static_cast<int>(m_line_offset + m_height),
+                                    static_cast<int>(m_splitted_lines.size()));
 
-    return std::vector<std::string> {begin(m_splitted_lines) + m_line_offset, begin(m_splitted_lines) + end_line_offset};
+    return std::vector<std::string>{begin(m_splitted_lines) + m_line_offset,
+                                    begin(m_splitted_lines) + end_line_offset};
   }
 
-  std::streampos get_streampos() { return get_begin(); }
+  auto get_streampos() -> std::streampos { return get_window_begin(); }
 
 private:
-  using line_offset_t = int;
-
+  // Should be no more than 80
   struct RawLine {
     FileSegment line;
-    line_offset_t begin_offset;
-    line_offset_t end_offset;
+    int begin_offset;
+    int end_offset;
   };
 
   std::string m_fpath;
 
   FileLineExtractor m_file_line_extractor;
+  std::uintmax_t m_size;
   // width and height are required to be positive
-  int m_width;
-  int m_height;
+  unsigned int m_width = 1;
+  unsigned int m_height = 1;
 
   // The stream position that the loaded content is anchored around
-  std::streampos m_anchor;
+  std::streampos m_anchor = 0;
 
   // INTERNAL DATA STRUCTURES
 
@@ -226,7 +235,7 @@ private:
   // except for the case when the file is empty
   std::deque<RawLine> m_raw_lines;
 
-  line_offset_t m_line_offset;
+  int m_line_offset = 0;
 
   void reset() {
     // Reset all internal data structures
@@ -236,15 +245,15 @@ private:
   }
 
   void load_initial_file_content() {
-    while (can_extract_next_raw_line() && (int)m_splitted_lines.size() < m_height) {
+    while (can_extract_next_raw_line() && m_splitted_lines.size() < m_height) {
       add_next_raw_line();
     }
   }
 
   void cut_redundant_front_lines() {
-    while(!m_raw_lines.empty() && m_raw_lines.front().end_offset <= m_line_offset) {
-      line_offset_t begin_offset =  m_raw_lines.front().begin_offset;
-      line_offset_t end_offset = m_raw_lines.front().end_offset;
+    while (!m_raw_lines.empty() && m_raw_lines.front().end_offset <= m_line_offset) {
+      int begin_offset = m_raw_lines.front().begin_offset;
+      int end_offset = m_raw_lines.front().end_offset;
 
       int to_be_removed_num = end_offset - begin_offset;
 
@@ -255,7 +264,8 @@ private:
 
       m_raw_lines.pop_front();
 
-      m_splitted_lines.erase(begin(m_splitted_lines) + begin_offset, begin(m_splitted_lines) + end_offset);
+      m_splitted_lines.erase(begin(m_splitted_lines) + begin_offset,
+                             begin(m_splitted_lines) + end_offset);
 
       m_line_offset -= to_be_removed_num;
     }
@@ -263,12 +273,13 @@ private:
 
   void cut_redundant_back_lines() {
     while (!m_raw_lines.empty() && m_raw_lines.back().begin_offset >= m_line_offset + m_height) {
-      line_offset_t begin_offset = m_raw_lines.back().begin_offset;
-      line_offset_t end_offset = m_raw_lines.back().end_offset;
+      int begin_offset = m_raw_lines.back().begin_offset;
+      int end_offset = m_raw_lines.back().end_offset;
 
       m_raw_lines.pop_back();
 
-      m_splitted_lines.erase(begin(m_splitted_lines) + begin_offset, begin(m_splitted_lines) + end_offset);
+      m_splitted_lines.erase(begin(m_splitted_lines) + begin_offset,
+                             begin(m_splitted_lines) + end_offset);
     }
   }
 
@@ -277,14 +288,14 @@ private:
 
     auto next_line_splitted = split_line(next_raw_line.content);
 
-    line_offset_t begin_offset = m_splitted_lines.size();
-    line_offset_t end_offset = m_splitted_lines.size() + next_line_splitted.size();
+    int begin_offset = m_splitted_lines.size();
+    int end_offset = m_splitted_lines.size() + next_line_splitted.size();
 
     // Update all internal data structures
 
     // Insert to the end of splitted lines
-    m_splitted_lines.insert(end(m_splitted_lines),
-      begin(next_line_splitted), end(next_line_splitted));
+    m_splitted_lines.insert(end(m_splitted_lines), begin(next_line_splitted),
+                            end(next_line_splitted));
 
     // Insert to the end of raw lines
     m_raw_lines.push_back({next_raw_line, begin_offset, end_offset});
@@ -295,53 +306,57 @@ private:
 
     auto prev_line_splitted = split_line(prev_raw_line.content);
 
-    int new_line_num = prev_line_splitted.size();
+    size_t new_line_num = prev_line_splitted.size();
+    if (new_line_num > std::numeric_limits<int>::max()) {
+      throw LFVException("Line length exceeded limit");
+    }
 
-    for (auto& raw_line: m_raw_lines) {
-      raw_line.begin_offset += new_line_num;
-      raw_line.end_offset += new_line_num;
+    auto prepended_line_offset = static_cast<int>(new_line_num);
+
+    for (auto& raw_line : m_raw_lines) {
+      raw_line.begin_offset += prepended_line_offset;
+      raw_line.end_offset += prepended_line_offset;
     }
 
     // Update all internal data structures
 
     // Insert into the beginning of splitted lines
-    m_splitted_lines.insert(begin(m_splitted_lines),
-      begin(prev_line_splitted), end(prev_line_splitted));
+    m_splitted_lines.insert(begin(m_splitted_lines), begin(prev_line_splitted),
+                            end(prev_line_splitted));
 
     // Insert into the beginning of raw lines
-    m_raw_lines.push_front({prev_raw_line, 0, new_line_num});
+    m_raw_lines.push_front({prev_raw_line, 0, prepended_line_offset});
 
     // Push the offset back
     m_line_offset += new_line_num;
   }
 
-  FileSegment extract_prev_raw_line() {
-    return m_file_line_extractor.get_line_containing(get_begin() - (std::streamoff)1);
+  auto extract_prev_raw_line() -> FileSegment {
+    return m_file_line_extractor.get_line_containing(get_window_begin() - (std::streamoff)1);
   }
 
-  FileSegment extract_next_raw_line() {
-    return m_file_line_extractor.get_line_containing(get_end());
+  auto extract_next_raw_line() -> FileSegment {
+    return m_file_line_extractor.get_line_containing(get_window_end());
   }
 
-  bool can_extract_next_raw_line() { return get_end() < m_file_line_extractor.get_end(); }
+  auto can_extract_next_raw_line() -> bool {
+    return get_window_end() < m_file_line_extractor.get_end();
+  }
 
-  bool can_extract_prev_raw_line() { return get_begin() > 0; }
+  auto can_extract_prev_raw_line() -> bool { return get_window_begin() > 0; }
 
-  std::vector<std::string> split_line(const std::string& line, const char sep = ' ') {
+  auto split_line(const std::string& line, const char sep = ' ') const -> std::vector<std::string> {
     std::vector<std::string> ret;
 
-    for (int i = 0; i < (int)line.size();) {
-      int width;
+    for (size_t i = 0; i < line.size();) {
+      // Take the rest of the line if possible
+      uint32_t width = line.size() - i;
 
-      if (i + m_width >= (int) line.size()) {
-        // Take the rest of the line if possible
-        width = (int)line.size() - i;
-      }
-      else {
+      if (i + m_width < line.size()) {
         // Otherwise, take until the last separator if there is one
         int next_space = line.find_last_of(sep, i + m_width - 1);
 
-        if (next_space == -1 || next_space < i) {
+        if (next_space == -1 || (next_space >= 0 && (unsigned)next_space < i)) {
           // No space before next cut
           // We just simply cut at that point.
           // In extreme cases a word will be seperated
@@ -360,7 +375,7 @@ private:
     return ret;
   }
 
-  std::streampos get_begin() {
+  auto get_window_begin() -> std::streampos {
     if (m_raw_lines.empty()) {
       return m_anchor;
     }
@@ -368,7 +383,7 @@ private:
     return m_raw_lines.front().line.begin_pos;
   }
 
-  std::streampos get_end() {
+  auto get_window_end() -> std::streampos {
     if (m_raw_lines.empty()) {
       return m_anchor;
     }

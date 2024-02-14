@@ -10,8 +10,6 @@ TEST_CASE("Test safe_arg") {
 
   SafeArg safe_arg(arg_str);
 
-  std::cout << "done construction";
-
   CHECK(safe_arg.get_argc() == 2);
   CHECK(strcmp("jump", safe_arg.get_argv()[0]) == 0);
   CHECK(strcmp("0", safe_arg.get_argv()[1]) == 0);

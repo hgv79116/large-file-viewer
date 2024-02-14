@@ -160,7 +160,10 @@ public:
 
   void
   clear() {
+    m_input->Detach();
+
     m_current_command.clear();
+
     init_input_field();
   }
 
@@ -180,6 +183,7 @@ private:
       clear();
     };
     m_input = ftxui::Input(&m_current_command, input_option);
+    Add(m_input);
   }
 };
 
@@ -299,6 +303,11 @@ public:
       ("t,to", "Ending position in bytes",
         cxxopts::value<int64_t>()->default_value(std::to_string(m_extractor->get_size())));
     m_search_options.parse_positional({"pattern"});
+
+    Add(m_edit_window);
+    Add(m_task_message_window);
+    Add(m_message_window);
+    Add(m_command_window);
   }
 
   bool OnEvent(ftxui::Event event) override {
@@ -376,30 +385,6 @@ public:
   }
 
   ftxui::Element Render() override {
-    // Synchronise UI state with background task if needed
-    if (m_search_result != nullptr) {
-      BackgroundTaskStatus status = m_search_result->status;
-      switch (status) {
-        case BackgroundTaskStatus::NOT_STARTED:
-          m_task_message_window->set_message("Search pending");
-          break;
-        case BackgroundTaskStatus::ONGOING:
-          m_task_message_window->set_message(
-              "Searched until location " + std::to_string(m_search_result->get_current_pos()) + "... "
-              + std::to_string(m_search_result->get_num_matches()) + " occurences found.");
-          break;
-        case BackgroundTaskStatus::FINISHED:
-          m_task_message_window->set_message(
-              "Searched completed. "
-              + std::to_string(m_search_result->get_num_matches()) + " occurences found.");
-          break;
-        case BackgroundTaskStatus::ABORTED:
-          m_task_message_window->set_message("Search canceled!");
-          break;
-      }
-    }
-
-
     if (m_mode == Mode::VIEW) {
       // View mode
       return ftxui::vbox({
@@ -423,6 +408,31 @@ public:
   }
 
   bool Focusable() const override { return true; }
+
+  void synchronise() {
+    // Synchronise UI state with background task if needed
+    if (m_search_result != nullptr) {
+      BackgroundTaskStatus status = m_search_result->status;
+      switch (status) {
+        case BackgroundTaskStatus::NOT_STARTED:
+          m_task_message_window->set_message("Search pending");
+          break;
+        case BackgroundTaskStatus::ONGOING:
+          m_task_message_window->set_message(
+              "Searched until location " + std::to_string(m_search_result->get_current_pos()) + "... "
+              + std::to_string(m_search_result->get_num_matches()) + " occurences found.");
+          break;
+        case BackgroundTaskStatus::FINISHED:
+          m_task_message_window->set_message(
+              "Searched completed. "
+              + std::to_string(m_search_result->get_num_matches()) + " occurences found.");
+          break;
+        case BackgroundTaskStatus::ABORTED:
+          m_task_message_window->set_message("Search canceled!");
+          break;
+      }
+    }
+  }
 
 private:
   Mode m_mode;
@@ -493,12 +503,8 @@ private:
             m_message_window->error("Already running a background task. ");
           }
           else {
-            std::cerr << "Almost done" << std::endl;
-
             // Reset search variables
             reset_search();
-
-            std::cerr << "REset done" << std::endl;
 
             // Capturing by reference leads to reading trash values when
             // the lambda is called later.
@@ -526,8 +532,33 @@ private:
     m_displayed_search_index = -1;
     m_search_result = std::make_shared<SearchResult>();
     m_search_aborted = std::make_shared<std::atomic<bool>>(false);
-    std::cerr << "here" << std::endl;
   }
+};
+
+class SynchroniseLoop {
+public:
+  SynchroniseLoop(std::shared_ptr<FileEditor> file_editor, int delay = 30):
+    m_file_editor(file_editor),
+    m_delay(delay) {
+  }
+
+  void start_loop() {
+    m_thread = std::thread([this] {
+      while (true) {
+        m_file_editor->synchronise();
+        ftxui::ScreenInteractive* screen = ftxui::ScreenInteractive::Active();
+        if (screen) {
+          screen->PostEvent(ftxui::Event::Custom);
+        }
+        std::this_thread::sleep_for(std::chrono::microseconds(m_delay));
+      }
+    });
+  }
+
+private:
+  std::shared_ptr<FileEditor> m_file_editor;
+  int m_delay;
+  std::thread m_thread;
 };
 
 void run_app(std::string fpath) {
@@ -542,6 +573,10 @@ void run_app(std::string fpath) {
   auto file_editor = std::make_shared<FileEditor>(edit_window, extractor, background_task_message_window);
 
   auto screen = ftxui::ScreenInteractive::Fullscreen();
+
+  auto loop = SynchroniseLoop(file_editor);
+
+  loop.start_loop();
 
   screen.Loop(file_editor);
 }

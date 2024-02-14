@@ -10,8 +10,6 @@ auto main(int argc, char** argv) -> int {
 
   const std::string fpath(argv[1]);
 
-  std::cerr << "wat is wrong" << std::endl;
-
   try {
     run_app(fpath);
   } catch (std::exception e) {

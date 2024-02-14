@@ -12,6 +12,9 @@ project(
   LANGUAGES CXX
 )
 
+# Clang-tidy
+set(CMAKE_CXX_CLANG_TIDY "clang-tidy;-checks=*")
+
 # ---- Include guards ----
 
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)

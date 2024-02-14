@@ -38,6 +38,12 @@ CPMAddPackage(
   OPTIONS "FMT_INSTALL YES" # create an installable target
 )
 
+CPMAddPackage(
+  GITHUB_REPOSITORY jarro2783/cxxopts
+  VERSION 3.0.0
+  OPTIONS "CXXOPTS_BUILD_EXAMPLES NO" "CXXOPTS_BUILD_TESTS NO" "CXXOPTS_ENABLE_INSTALL YES"
+)
+
 # --- Fetch FTXUI --------------------------------------------------------------
 FetchContent_Declare(ftxui
   GIT_REPOSITORY https://github.com/ArthurSonzogni/ftxui
@@ -71,6 +77,8 @@ target_link_libraries(${PROJECT_NAME}
   PUBLIC ftxui::screen
   PUBLIC ftxui::dom
 )
+
+target_link_libraries(${PROJECT_NAME} PRIVATE cxxopts)
 
 target_include_directories(
   ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>

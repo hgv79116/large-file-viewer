@@ -4,10 +4,11 @@
 #include <ftxui/component/screen_interactive.hpp>
 #include <vector>
 #include <memory>
-#include <sstream>
+
 #include <app.hpp>
 #include <file_extractor.hpp>
-#include <exception>
+#include <cxxopts.hpp>
+#include <safe_arg.hpp>
 
 class MessageWindow final : public ftxui::ComponentBase {
 public:
@@ -146,6 +147,8 @@ public:
     m_extractor(extractor),
     m_last_screen_dim_x(0),
     m_last_screen_dim_y(0) {
+
+
   }
 
   ftxui::Element Render() override {
@@ -230,12 +233,26 @@ private:
 class FileEditor : public ftxui::ComponentBase {
 public:
   FileEditor(std::shared_ptr<EditWindow> edit_window, std::shared_ptr<EditWindowExtractor> extractor):
-    m_edit_window(edit_window),
-    m_extractor(extractor) {
-    m_command_window = std::make_shared<CommandWindow>([this](std::string command) { execute_command(command); });
-    m_message_window = std::make_shared<MessageWindow>();
+    m_mode(Mode::VIEW),
 
-    m_mode = Mode::VIEW;
+    m_edit_window(edit_window),
+    m_command_window(std::make_shared<CommandWindow>([this](std::string command) { execute_command(command); })),
+    m_message_window(std::make_shared<MessageWindow>()),
+
+    m_extractor(extractor),
+
+    m_jump_options("jump", "Jump to a location if the file"),
+    m_search_options("search", "Search a pattern")
+  {
+    m_jump_options.add_options()
+      ("p,position", "Position to jump to in bytes", cxxopts::value<int64_t>());
+    m_jump_options.parse_positional({"position"});
+
+    m_search_options.add_options()
+      ("p,pattern", "Pattern to search")
+      ("f,from", "Starting position in bytes", cxxopts::value<int64_t>()->default_value("0"))
+      ("t,to", "Ending position in bytes", cxxopts::value<int64_t>()->default_value("0"));
+    m_search_options.parse_positional({"pattern"});
   }
 
   bool OnEvent(ftxui::Event event) override {
@@ -306,6 +323,10 @@ private:
   std::shared_ptr<MessageWindow> m_message_window;
   std::shared_ptr<EditWindowExtractor> m_extractor;
 
+  // Users' commands parsers
+  cxxopts::Options m_jump_options;
+  cxxopts::Options m_search_options;
+
   void switch_mode(Mode new_mode) {
     clear_current_mode();
     set_mode(new_mode);
@@ -322,28 +343,28 @@ private:
 
   // static constexpr std::string
   void execute_command(std::string command) {
-    std::stringstream ss (command);
+    SafeArg safe_arg(command);
+    std::string command_type(safe_arg.get_argv()[0]);
 
-    std::string command_type;
-
-    ss >> command_type;
     if (command_type == "exit") {
       exit(0);
     } else if (command_type == "jump") {
       int64_t pos = -1;
-      if (ss.str().empty()) {
-        m_message_window->error("Missing parameter 'pos'.");
+
+      try {
+        cxxopts::ParseResult parse_result = m_jump_options.parse(safe_arg.get_argc(), safe_arg.get_argv());
+        pos = parse_result["position"].as<int64_t>();
+      } catch (cxxopts::OptionException e) {
+        m_message_window->error(e.what());
+        return;
       }
-      else {
-        ss >> pos;
-        if (pos < 0) {
-          m_message_window->error("Invalid position: " + std::to_string(pos) + " < 0.");
-        } else if (pos >= m_extractor->get_size()) {
-          m_message_window->error("Position " + std::to_string(pos) + " exceeded file size.");
-        }
-        else {
-          m_extractor->move_to(pos);
-        }
+
+      if (pos < 0) {
+        m_message_window->error("Invalid position: " + std::to_string(pos) + " < 0.");
+      } else if (pos >= m_extractor->get_size()) {
+        m_message_window->error("Position " + std::to_string(pos) + " exceeded file size.");
+      } else {
+        m_extractor->move_to(pos);
       }
     } else {
       m_message_window->error("No such command: " + command);

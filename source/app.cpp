@@ -1,6 +1,6 @@
 #include <ftxui/screen/screen.hpp>
-#include <ftxui/dom/elements.hpp>
 #include <ftxui/component/component_base.hpp>
+#include <ftxui/dom/elements.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <vector>
 #include <memory>
@@ -9,6 +9,49 @@
 #include <file_extractor.hpp>
 #include <cxxopts.hpp>
 #include <safe_arg.hpp>
+#include <background_task_runner.hpp>
+#include <search_stream.hpp>
+
+constexpr int32_t DEFAULT_MATCH_LIMIT = 5e6;
+
+// The components below follow a React-ive pattern by gathering all 3 concerns in one component:
+// - Rendering
+// - Updating state based on users' input
+// - Synchronising with background task
+// This pattern somewhat helps isolate data based on the UI's separation, but entangle different kinds
+// logic in one place
+
+class BackgroundTaskMessageWindow final : public ftxui::ComponentBase {
+public:
+  ftxui::Element Render() override {
+    return ftxui::paragraph(m_message) | ftxui::color(ftxui::Color::SkyBlue1) | ftxui::bold;
+  }
+
+  bool
+  OnEvent(ftxui::Event event) override {
+    (void)event;
+    // Do nothing.
+    return false;
+  };
+
+  void
+  OnAnimation(ftxui::animation::Params& params) override {
+    // Do nothing
+    (void)params;
+  }
+
+  bool Focusable() const override { return true; }
+
+  // APIs for state mutation by parent components and
+  // updaters/synchronisers
+  // Not thread-safe. Requires updaters/synchronisers to run on the same thread
+  void set_message(std::string&& message) { m_message = message; }
+
+  void clear() { m_message.clear(); }
+
+private:
+  std::string m_message;
+};
 
 class MessageWindow final : public ftxui::ComponentBase {
 public:
@@ -78,16 +121,16 @@ private:
 
     if (m_displayed_message->type == MessageType::ERROR) {
       return paragraph("Error: " + m_displayed_message->content + ". Press Escape to continue.")
-        | color(Color::Red);
+        | color(Color::RedLight) | bold;
     }
 
     if (m_displayed_message->type == MessageType::WARNING) {
       return paragraph("Warning: " + m_displayed_message->content + ". Press Escape to continue.")
-        | color(Color::Yellow);
+        | color(Color::Yellow) | bold;
     }
 
     // Info
-    return paragraph(m_displayed_message->content) | color(Color::Blue);
+    return paragraph(m_displayed_message->content) | color(Color::LightCoral) | bold;
   }
 
 
@@ -146,8 +189,6 @@ public:
     m_extractor(extractor),
     m_last_screen_dim_x(0),
     m_last_screen_dim_y(0) {
-
-
   }
 
   ftxui::Element Render() override {
@@ -167,7 +208,7 @@ public:
 
     auto element = window(text(m_extractor->get_fpath() + " [" + formatted_pos + " / "
       + formatted_fsize + "]")
-      | color(Color::Blue) | blink,
+      | color(Color::GreenLight) | bold,
       vbox(line_texts));
 
     element = flex_grow(element);
@@ -211,6 +252,7 @@ public:
   bool Focusable() const override { return true; }
 private:
   std::shared_ptr<EditWindowExtractor> m_extractor;
+  std::shared_ptr<BackgroundTaskMessageWindow> m_task_message_window;
   int m_last_screen_dim_x;
   int m_last_screen_dim_y;
 
@@ -231,10 +273,14 @@ private:
 
 class FileEditor : public ftxui::ComponentBase {
 public:
-  FileEditor(std::shared_ptr<EditWindow> edit_window, std::shared_ptr<EditWindowExtractor> extractor):
+  FileEditor(
+    std::shared_ptr<EditWindow> edit_window,
+    std::shared_ptr<EditWindowExtractor> extractor,
+    std::shared_ptr<BackgroundTaskMessageWindow> task_message_window):
     m_mode(Mode::VIEW),
 
     m_edit_window(edit_window),
+    m_task_message_window(task_message_window),
     m_command_window(std::make_shared<CommandWindow>([this](std::string command) { execute_command(command); })),
     m_message_window(std::make_shared<MessageWindow>()),
 
@@ -248,9 +294,10 @@ public:
     m_jump_options.parse_positional({"position"});
 
     m_search_options.add_options()
-      ("p,pattern", "Pattern to search")
+      ("p,pattern", "Pattern to search", cxxopts::value<std::string>())
       ("f,from", "Starting position in bytes", cxxopts::value<int64_t>()->default_value("0"))
-      ("t,to", "Ending position in bytes", cxxopts::value<int64_t>()->default_value("0"));
+      ("t,to", "Ending position in bytes",
+        cxxopts::value<int64_t>()->default_value(std::to_string(m_extractor->get_size())));
     m_search_options.parse_positional({"pattern"});
   }
 
@@ -262,6 +309,40 @@ public:
       m_message_window->OnEvent(event);
       m_command_window->OnEvent(event);
       return true;
+    }
+
+    // Handle search events, if searching
+    if (m_search_result != nullptr) {
+      int num_match = m_search_result->get_num_matches();
+      BackgroundTaskStatus status = m_search_result->status;
+      bool search_finished_or_aborted
+          = status == BackgroundTaskStatus::FINISHED || status == BackgroundTaskStatus::ABORTED;
+      if (event == Event::Tab) {
+        // User wants to find the next match
+        if (num_match == 0) {
+          m_message_window->error("No matches found yet");
+        } else if (m_displayed_search_index + 1 >= num_match) {
+          if (!search_finished_or_aborted) {
+            m_message_window->error("Next match not found yet");
+          }
+          else {
+            m_message_window->error("No more matches found");
+          }
+        } else {
+          m_displayed_search_index++;
+          m_extractor->move_to(m_search_result->get_match(m_displayed_search_index));
+        }
+      } else if (event == Event::TabReverse) {
+        // User wants to find previous match
+        if (num_match == 0) {
+          m_message_window->error("No matches found yet");
+        } else if (m_displayed_search_index - 1 < 0) {
+          m_message_window->error("No previous matches");
+        } else {
+          m_displayed_search_index--;
+          m_extractor->move_to(m_search_result->get_match(m_displayed_search_index));
+        }
+      }
     }
 
     // Handle unspecial events
@@ -295,13 +376,41 @@ public:
   }
 
   ftxui::Element Render() override {
+    // Synchronise UI state with background task if needed
+    if (m_search_result != nullptr) {
+      BackgroundTaskStatus status = m_search_result->status;
+      switch (status) {
+        case BackgroundTaskStatus::NOT_STARTED:
+          m_task_message_window->set_message("Search pending");
+          break;
+        case BackgroundTaskStatus::ONGOING:
+          m_task_message_window->set_message(
+              "Searched until location " + std::to_string(m_search_result->get_current_pos()) + "... "
+              + std::to_string(m_search_result->get_num_matches()) + " occurences found.");
+          break;
+        case BackgroundTaskStatus::FINISHED:
+          m_task_message_window->set_message(
+              "Searched completed. "
+              + std::to_string(m_search_result->get_num_matches()) + " occurences found.");
+          break;
+        case BackgroundTaskStatus::ABORTED:
+          m_task_message_window->set_message("Search canceled!");
+          break;
+      }
+    }
+
+
     if (m_mode == Mode::VIEW) {
       // View mode
-      return ftxui::vbox({m_edit_window->Render()});
+      return ftxui::vbox({
+        m_edit_window->Render(),
+        m_task_message_window->Render()
+      });
     } else {
       // Command mode
       return ftxui::vbox({
         m_edit_window->Render(),
+        m_task_message_window->Render(),
         m_message_window->Render(),
         m_command_window->Render(),
       });
@@ -318,6 +427,7 @@ public:
 private:
   Mode m_mode;
   std::shared_ptr<EditWindow> m_edit_window;
+  std::shared_ptr<BackgroundTaskMessageWindow> m_task_message_window;
   std::shared_ptr<CommandWindow> m_command_window;
   std::shared_ptr<MessageWindow> m_message_window;
   std::shared_ptr<EditWindowExtractor> m_extractor;
@@ -325,6 +435,12 @@ private:
   // Users' commands parsers
   cxxopts::Options m_jump_options;
   cxxopts::Options m_search_options;
+
+  // Search result, if there is any
+  static constexpr int NOT_DISPLAYED = -1;
+  int m_displayed_search_index;
+  std::shared_ptr<SearchResult> m_search_result;
+  std::shared_ptr<std::atomic<bool>> m_search_aborted;
 
   void switch_mode(Mode new_mode) {
     clear_current_mode();
@@ -345,29 +461,72 @@ private:
     SafeArg safe_arg(command);
     std::string command_type(safe_arg.get_argv()[0]);
 
-    if (command_type == "exit") {
-      exit(0);
-    } else if (command_type == "jump") {
-      int64_t pos = -1;
-
-      try {
+    try {
+      if (command_type == "exit") {
+        exit(0);
+      } else if (command_type == "jump") {
         cxxopts::ParseResult parse_result = m_jump_options.parse(safe_arg.get_argc(), safe_arg.get_argv());
-        pos = parse_result["position"].as<int64_t>();
-      } catch (cxxopts::OptionException e) {
-        m_message_window->error(e.what());
-        return;
-      }
+        int64_t pos = parse_result["position"].as<int64_t>();
 
-      if (pos < 0) {
-        m_message_window->error("Invalid position: " + std::to_string(pos) + " < 0.");
-      } else if (pos >= m_extractor->get_size()) {
-        m_message_window->error("Position " + std::to_string(pos) + " exceeded file size.");
+        if (pos < 0 || pos >= m_extractor->get_size()) {
+          m_message_window->error("Invalid position: " + std::to_string(pos));
+        } else {
+          m_extractor->move_to(pos);
+        }
+      } else if (command_type == "search") {
+        cxxopts::ParseResult parse_result
+            = m_search_options.parse(safe_arg.get_argc(), safe_arg.get_argv());
+
+        std::string pattern = parse_result["pattern"].as<std::string>();
+        int64_t from = parse_result["from"].as<int64_t>();
+        int64_t to = parse_result["to"].as<int64_t>();
+
+        if (pattern.empty()) {
+          m_message_window->error("Pattern cannot be empty");
+        } else if (from > to || from < 0 || from > m_extractor->get_size() ||
+          to < 0 || to > m_extractor->get_size()) {
+          m_message_window->error("Invalid range: " + std::to_string(from) + " - " + std::to_string(to));
+        } else {
+          BackgroundTaskRunner& runner = BackgroundTaskRunner::get_instance();
+
+          if (!runner.can_run_task()) {
+            m_message_window->error("Already running a background task. ");
+          }
+          else {
+            std::cerr << "Almost done" << std::endl;
+
+            // Reset search variables
+            reset_search();
+
+            std::cerr << "REset done" << std::endl;
+
+            // Capturing by reference leads to reading trash values when
+            // the lambda is called later.
+            runner.run_task([this, pattern, from, to] {
+              search_in_stream(std::ifstream(m_extractor->get_fpath()),
+                               pattern, from, to, DEFAULT_MATCH_LIMIT, m_search_result, m_search_aborted);
+            });
+          };
+        }
+      } else if (command_type == "cancel") {
+        // Request search to cancel. The thread running this search won't really be stopped until
+        // it reads the signal.
+        *m_search_aborted = true;
       } else {
-        m_extractor->move_to(pos);
+        m_message_window->error("No such command: " + command);
       }
-    } else {
-      m_message_window->error("No such command: " + command);
+    } catch (cxxopts::OptionException e) {
+      m_message_window->error(e.what());
+      return;
     }
+  }
+
+  void reset_search() {
+    // Reset search variables
+    m_displayed_search_index = -1;
+    m_search_result = std::make_shared<SearchResult>();
+    m_search_aborted = std::make_shared<std::atomic<bool>>(false);
+    std::cerr << "here" << std::endl;
   }
 };
 
@@ -376,15 +535,13 @@ void run_app(std::string fpath) {
 
   auto extractor = std::make_shared<EditWindowExtractor>(fpath);
 
+  auto background_task_message_window = std::make_shared<BackgroundTaskMessageWindow>();
+
   auto edit_window = std::make_shared<EditWindow>(extractor);
 
-  auto file_editor = std::make_shared<FileEditor>(edit_window, extractor);
+  auto file_editor = std::make_shared<FileEditor>(edit_window, extractor, background_task_message_window);
 
   auto screen = ftxui::ScreenInteractive::Fullscreen();
 
-  try {
-    screen.Loop(file_editor);
-  } catch (std::string const & e) {
-    std::cout << e;
-  }
+  screen.Loop(file_editor);
 }

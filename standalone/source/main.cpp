@@ -1,5 +1,6 @@
 #include <iostream>
 #include <app.hpp>
+#include <exception>
 
 auto main(int argc, char** argv) -> int {
   if (argc < 2) {
@@ -9,7 +10,15 @@ auto main(int argc, char** argv) -> int {
 
   const std::string fpath(argv[1]);
 
-  run_app(fpath);
+  std::cerr << "wat is wrong" << std::endl;
+
+  try {
+    run_app(fpath);
+  } catch (std::exception e) {
+    std::cout << e.what();
+  } catch (...) {
+    std::cout << "Unknown error";
+  }
 
   return 0;
 }

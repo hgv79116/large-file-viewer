@@ -14,7 +14,7 @@ class MessageWindow final : public ftxui::ComponentBase {
 public:
   ftxui::Element Render() override {
     using namespace ftxui;
-    return get_formatted_message() | ftxui::size(WidthOrHeight::HEIGHT, Constraint::GREATER_THAN, 2);
+    return get_formatted_message();
   }
 
   bool
@@ -102,10 +102,9 @@ public:
   bool OnEvent(ftxui::Event event) override { return m_input->OnEvent(event); }
 
   ftxui::Element Render() override {
-    return ftxui::hbox({
-      ftxui::text("/"),
-      m_input->Render()
-    });
+    using namespace ftxui;
+    return hbox({text("/"), m_input->Render()})
+           | size(WidthOrHeight::HEIGHT, Constraint::GREATER_THAN, 2);
   }
 
   void
@@ -225,7 +224,7 @@ private:
       // Resize the screen
       m_last_screen_dim_x = dimx;
       m_last_screen_dim_y = dimy;
-      m_extractor->set_size(std::max(1, dimx - 2), std::max(1, dimy));
+      m_extractor->set_size(std::max(1, dimx - 2), std::max(1, dimy - 2));
     }
   }
 };
@@ -303,8 +302,8 @@ public:
       // Command mode
       return ftxui::vbox({
         m_edit_window->Render(),
+        m_message_window->Render(),
         m_command_window->Render(),
-        m_message_window->Render()
       });
     }
   }

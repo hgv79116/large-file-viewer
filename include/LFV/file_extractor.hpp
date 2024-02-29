@@ -14,6 +14,7 @@ public:
     m_in.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     m_in.open(fpath);
 
+
     m_in.seekg(0, std::ios_base::end);
     m_end = m_in.tellg();
     m_in.seekg(0, std::ios_base::beg);
@@ -44,6 +45,8 @@ public:
   }
 
   auto find_last_of(char target, std::streampos pos) -> std::streampos {
+    std::cerr << " starting find at " << pos << std::endl;
+
     m_in.clear();
     m_in.seekg(pos);
 
@@ -53,8 +56,12 @@ public:
     }
 
     if (m_in.peek() == target) {
+      std::cerr << " find ended " << std::endl;
+
       return m_in.tellg();
     }
+
+    std::cerr << " find ended " << std::endl;
 
     return -1;
   }
@@ -92,6 +99,11 @@ public:
   auto get_end() const -> std::streampos { return m_file_extractor.get_end(); }
 
   auto get_line_begin(std::streampos pos) -> std::streampos {
+    if (pos == 0) {
+      // If pos is at the beginning of the file
+      return 0;
+    }
+
     auto prev_line_end = m_file_extractor.find_last_of('\n', pos - (std::streamoff)1);
     if (prev_line_end == -1) {
       // This is the first line
@@ -220,8 +232,8 @@ private:
   FileLineExtractor m_file_line_extractor;
   std::uintmax_t m_size;
   // width and height are required to be positive
-  unsigned int m_width = 1;
-  unsigned int m_height = 1;
+  int m_width = 1;
+  int m_height = 1;
 
   // The stream position that the loaded content is anchored around
   std::streampos m_anchor = 0;

@@ -14,7 +14,6 @@ public:
     m_in.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     m_in.open(fpath);
 
-
     m_in.seekg(0, std::ios_base::end);
     m_end = m_in.tellg();
     m_in.seekg(0, std::ios_base::beg);
@@ -175,7 +174,7 @@ public:
   auto get_end() const -> std::streampos { return m_file_line_extractor.get_end(); }
 
   auto can_move_down() -> bool {
-    if (m_line_offset + m_height < m_splitted_lines.size()) {
+    if (m_line_offset + m_height < static_cast<int>(m_splitted_lines.size())) {
       return true;
     }
 
@@ -191,7 +190,7 @@ public:
   }
 
   void move_down() {
-    if (m_line_offset + m_height >= m_splitted_lines.size()) {
+    if (m_line_offset + m_height >= static_cast<int>(m_splitted_lines.size())) {
       add_next_raw_line();
     }
 
@@ -257,7 +256,7 @@ private:
   }
 
   void load_initial_file_content() {
-    while (can_extract_next_raw_line() && m_splitted_lines.size() < m_height) {
+    while (can_extract_next_raw_line() && static_cast<int>(m_splitted_lines.size()) < m_height) {
       add_next_raw_line();
     }
   }

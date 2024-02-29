@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -13,7 +14,6 @@ public:
     // Open with exception thrown if fail
     m_in.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     m_in.open(fpath);
-
 
     m_in.seekg(0, std::ios_base::end);
     m_end = m_in.tellg();

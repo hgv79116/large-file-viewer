@@ -5,6 +5,7 @@
 #include <LFV/search_stream.hpp>
 #include <cstdint>
 #include <cxxopts.hpp>
+#include <deque>>
 #include <ftxui/component/component_base.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/dom/elements.hpp>
@@ -465,12 +466,13 @@ private:
       m_message_window->error("Invalid position: " + std::to_string(pos));
     } else {
       m_extractor->move_to(pos);
+      m_message_window->info("Jumped to " + std::to_string(pos));
     }
   }
 
   void execute_search_command(const SafeArg& safe_arg) {
     cxxopts::ParseResult parse_result
-        = m_jump_options.parse(safe_arg.get_argc(), safe_arg.get_argv());
+        = m_search_options.parse(safe_arg.get_argc(), safe_arg.get_argv());
 
     auto pattern = parse_result["pattern"].as<std::string>();
     auto from = static_cast<std::streampos>(parse_result["from"].as<long long>());
@@ -581,23 +583,20 @@ public:
   SynchroniseLoop(std::shared_ptr<FileEditor> file_editor, int delay)
       : m_file_editor(std::move(file_editor)), m_delay(delay) {}
 
-  void start_loop() {
-    m_thread = std::thread([this] {
-      while (true) {
-        m_file_editor->synchronise();
-        ftxui::ScreenInteractive* screen = ftxui::ScreenInteractive::Active();
-        if (screen != nullptr) {
-          screen->PostEvent(ftxui::Event::Custom);
-        }
-        std::this_thread::sleep_for(std::chrono::microseconds(m_delay));
+  void loop() {
+    while (true) {
+      m_file_editor->synchronise();
+      ftxui::ScreenInteractive* screen = ftxui::ScreenInteractive::Active();
+      if (screen != nullptr) {
+        screen->PostEvent(ftxui::Event::Custom);
       }
-    });
+      std::this_thread::sleep_for(std::chrono::microseconds(m_delay));
+    }
   }
 
 private:
   std::shared_ptr<FileEditor> m_file_editor;
   int m_delay;
-  std::thread m_thread;
 };
 
 void run_app(std::string fpath) {
@@ -618,7 +617,16 @@ void run_app(std::string fpath) {
 
   auto loop = SynchroniseLoop(file_editor, DEFAULT_SYNCHRONISATION_DELAY);
 
-  loop.start_loop();
+  // Start the synchronise thread and the background thread
+  auto synchronise_thread = std::thread([&loop] { loop.loop(); });
 
+  auto background_thread = std::thread([&runner_ptr] { runner_ptr->loop(); });
+
+  // Start the ftxui loop
   screen.Loop(file_editor);
+
+  // Wait for the children threads
+  synchronise_thread.join();
+
+  background_thread.join();
 }

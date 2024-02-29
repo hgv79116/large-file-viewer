@@ -15,18 +15,21 @@ public:
 
   ~BackgroundTaskRunner();
 
+  void loop();
+
+  void quit();
+
   auto can_run_task() -> bool;
 
   void run_task(std::function<void()> task);
 
 private:
   mutable std::mutex m_mutex;
+  mutable std::condition_variable m_cv;
+
   std::atomic<bool> m_is_busy;
   std::atomic<bool> m_has_quitted;
   std::function<void()> m_queued_task;
-  std::thread m_thread;
 
-  void loop();
-
-  auto get_queued_task() -> std::function<void()>;
+  auto get_queued_task_wait() -> std::function<void()>;
 };

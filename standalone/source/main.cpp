@@ -1,6 +1,6 @@
-#include <iostream>
-#include <app.hpp>
+#include <LFV/app.hpp>
 #include <exception>
+#include <iostream>
 
 auto main(int argc, char** argv) -> int {
   if (argc < 2) {
@@ -12,10 +12,10 @@ auto main(int argc, char** argv) -> int {
 
   try {
     run_app(fpath);
-  } catch (std::exception e) {
-    std::cout << e.what();
+  } catch (std::exception const& e) {
+    std::cerr << e.what();
   } catch (...) {
-    std::cout << "Unknown error";
+    std::cerr << "Unknown error";
   }
 
   return 0;

@@ -1,9 +1,9 @@
 #include <doctest/doctest.h>
-#include <string>
+
+#include <LFV/safe_arg.hpp>
 #include <cstring>
 #include <iostream>
-
-#include <safe_arg.hpp>
+#include <string>
 
 TEST_CASE("Test safe_arg") {
   const std::string arg_str = "jump 0";

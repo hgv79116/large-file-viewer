@@ -21,15 +21,15 @@ public:
     m_in.clear();
   }
 
-  auto get_end() const -> std::streampos { return m_end; }
+  std::streampos get_end() const { return m_end; }
 
-  auto getc(std::streampos pos) -> int {
+  int getc(std::streampos pos) {
     m_in.clear();
     m_in.seekg(pos);
     return m_in.get();
   }
 
-  auto find_first_of(char target, std::streampos pos) -> std::streampos {
+  std::streampos find_first_of(char target, std::streampos pos) {
     m_in.clear();
     m_in.seekg(pos);
 
@@ -44,7 +44,7 @@ public:
     return -1;
   }
 
-  auto find_last_of(char target, std::streampos pos) -> std::streampos {
+  std::streampos find_last_of(char target, std::streampos pos) {
     std::cerr << " starting find at " << pos << std::endl;
 
     m_in.clear();
@@ -57,7 +57,6 @@ public:
 
     if (m_in.peek() == target) {
       std::cerr << " find ended " << std::endl;
-
       return m_in.tellg();
     }
 
@@ -66,7 +65,7 @@ public:
     return -1;
   }
 
-  auto slice(std::streampos begin, std::streampos end) -> std::string {
+  std::string slice(std::streampos begin, std::streampos end) {
     m_in.clear();
     m_in.seekg(begin);
 
@@ -96,9 +95,9 @@ public:
 
   FileLineExtractor(std::string fpath) : m_file_extractor(fpath) {}
 
-  auto get_end() const -> std::streampos { return m_file_extractor.get_end(); }
+  std::streampos get_end() const { return m_file_extractor.get_end(); }
 
-  auto get_line_begin(std::streampos pos) -> std::streampos {
+  std::streampos get_line_begin(std::streampos pos) {
     if (pos == 0) {
       // If pos is at the beginning of the file
       return 0;
@@ -113,7 +112,7 @@ public:
     return prev_line_end + (std::streamoff)1;
   }
 
-  auto get_line_end(std::streampos pos) -> std::streampos {
+  std::streampos get_line_end(std::streampos pos) {
     auto this_end_line = m_file_extractor.find_first_of('\n', pos);
 
     if (this_end_line == -1) {
@@ -125,14 +124,14 @@ public:
     return this_end_line + (std::streamoff)1;
   }
 
-  auto get_line_containing(std::streampos pos) -> FileSegment {
+  FileSegment get_line_containing(std::streampos pos) {
     auto line_begin = get_line_begin(pos);
     auto line_end = get_line_end(pos);
 
     return {line_begin, line_end, m_file_extractor.slice(line_begin, line_end)};
   }
 
-  auto get_line_from(std::streampos line_begin) -> FileSegment {
+  FileSegment get_line_from(std::streampos line_begin) {
     auto line_end = get_line_end(line_begin);
     return {line_begin, line_end, m_file_extractor.slice(line_begin, line_end)};
   }
@@ -160,7 +159,7 @@ public:
     load_initial_file_content();
   }
 
-  auto get_fpath() -> std::string { return m_fpath; }
+  std::string get_fpath() { return m_fpath; }
 
   void move_to(std::streampos pos) {
     m_anchor = pos;
@@ -170,11 +169,11 @@ public:
     load_initial_file_content();
   }
 
-  auto get_size() const -> std::uintmax_t { return m_size; }
+  std::uintmax_t get_size() const { return m_size; }
 
-  auto get_end() const -> std::streampos { return m_file_line_extractor.get_end(); }
+  std::streampos get_end() const { return m_file_line_extractor.get_end(); }
 
-  auto can_move_down() -> bool {
+  bool can_move_down() {
     if (m_line_offset + m_height < static_cast<int>(m_splitted_lines.size())) {
       return true;
     }
@@ -182,7 +181,7 @@ public:
     return can_extract_next_raw_line();
   }
 
-  auto can_move_up() -> bool {
+  bool can_move_up() {
     if (m_line_offset > 0) {
       return true;
     }
@@ -209,7 +208,7 @@ public:
     cut_redundant_back_lines();
   }
 
-  auto get_lines() -> std::vector<std::string> {
+  std::vector<std::string> get_lines() {
     auto end_line_offset = std::min(static_cast<int>(m_line_offset + m_height),
                                     static_cast<int>(m_splitted_lines.size()));
 
@@ -217,7 +216,7 @@ public:
                                     begin(m_splitted_lines) + end_line_offset};
   }
 
-  auto get_streampos() -> std::streampos { return get_window_begin(); }
+  std::streampos get_streampos() { return get_window_begin(); }
 
 private:
   // Should be no more than 80
@@ -243,8 +242,8 @@ private:
   // m_splitted_lines and m_raw_lines need to be kept sync
   std::vector<std::string> m_splitted_lines;
 
-  // After construction, m_raw_lines should not be empty
-  // except for the case when the file is empty
+  // After construction, m_raw_lines should not be empty except for the case
+  // when the file is empty
   std::deque<RawLine> m_raw_lines;
 
   int m_line_offset = 0;
@@ -343,21 +342,19 @@ private:
     m_line_offset += new_line_num;
   }
 
-  auto extract_prev_raw_line() -> FileSegment {
+  FileSegment extract_prev_raw_line() {
     return m_file_line_extractor.get_line_containing(get_window_begin() - (std::streamoff)1);
   }
 
-  auto extract_next_raw_line() -> FileSegment {
+  FileSegment extract_next_raw_line() {
     return m_file_line_extractor.get_line_containing(get_window_end());
   }
 
-  auto can_extract_next_raw_line() -> bool {
-    return get_window_end() < m_file_line_extractor.get_end();
-  }
+  bool can_extract_next_raw_line() { return get_window_end() < m_file_line_extractor.get_end(); }
 
-  auto can_extract_prev_raw_line() -> bool { return get_window_begin() > 0; }
+  bool can_extract_prev_raw_line() { return get_window_begin() > 0; }
 
-  auto split_line(const std::string& line, const char sep = ' ') const -> std::vector<std::string> {
+  std::vector<std::string> split_line(const std::string& line, const char sep = ' ') const {
     std::vector<std::string> ret;
 
     for (size_t i = 0; i < line.size();) {
@@ -387,7 +384,7 @@ private:
     return ret;
   }
 
-  auto get_window_begin() -> std::streampos {
+  std::streampos get_window_begin() {
     if (m_raw_lines.empty()) {
       return m_anchor;
     }
@@ -395,7 +392,7 @@ private:
     return m_raw_lines.front().line.begin_pos;
   }
 
-  auto get_window_end() -> std::streampos {
+  std::streampos get_window_end() {
     if (m_raw_lines.empty()) {
       return m_anchor;
     }

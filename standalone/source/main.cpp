@@ -2,7 +2,7 @@
 #include <exception>
 #include <iostream>
 
-auto main(int argc, char** argv) -> int {
+int main(int argc, char** argv) {
   if (argc < 2) {
     std::cerr << "Missing file path";
     return 0;

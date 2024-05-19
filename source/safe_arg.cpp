@@ -32,9 +32,9 @@ SafeArg::SafeArg(const std::string& argv) {
   }
 }
 
-auto SafeArg::get_argc() const -> int { return m_argc; }
+int SafeArg::get_argc() const { return m_argc; }
 
-auto SafeArg::get_argv() const -> const char* const* { return m_argv; }
+const char* const* SafeArg::get_argv() const { return m_argv; }
 
 SafeArg::~SafeArg() {
   for (int i = 0; i < m_argc; i++) {

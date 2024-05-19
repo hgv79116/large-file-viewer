@@ -31,7 +31,7 @@ void BackgroundTaskRunner::loop() {
 
 void BackgroundTaskRunner::quit() { m_has_quitted = true; }
 
-auto BackgroundTaskRunner::can_run_task() -> bool { return !m_is_busy; }
+bool BackgroundTaskRunner::can_run_task() { return !m_is_busy; }
 
 void BackgroundTaskRunner::run_task(std::function<void()> task) {
   std::unique_lock<std::mutex> lock(m_mutex);
@@ -46,7 +46,7 @@ void BackgroundTaskRunner::run_task(std::function<void()> task) {
   m_cv.notify_one();
 }
 
-auto BackgroundTaskRunner::get_queued_task_wait() -> std::function<void()> {
+std::function<void()> BackgroundTaskRunner::get_queued_task_wait() {
   std::unique_lock<std::mutex> lock(m_mutex);
 
   // Wait until

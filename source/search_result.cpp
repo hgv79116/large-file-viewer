@@ -4,9 +4,9 @@
 
 SearchResult::SearchResult() : m_status(BackgroundTaskStatus::NOT_STARTED) {}
 
-auto SearchResult::get_num_matches() const -> int { return static_cast<int>(m_matches.size()); }
+int SearchResult::get_num_matches() const { return static_cast<int>(m_matches.size()); }
 
-auto SearchResult::get_match(int index) const -> std::streampos {
+std::streampos SearchResult::get_match(int index) const {
   std::scoped_lock<std::mutex> lock(m_mutex);
 
   return m_matches[index];

@@ -12,17 +12,17 @@ class SearchResult {
 public:
   SearchResult();
 
-  auto get_num_matches() const -> int;
+  int get_num_matches() const;
 
-  auto get_match(int index) const -> std::streampos;
+  std::streampos get_match(int index) const;
 
   void add_match(std::streampos pos);
 
   void set_current_pos(std::streampos pos) { m_current_pos = pos; }
 
-  auto get_current_pos() -> int64_t { return m_current_pos; }
+  int64_t get_current_pos() { return m_current_pos; }
 
-  inline auto get_status() -> BackgroundTaskStatus { return m_status.load(); }
+  inline BackgroundTaskStatus get_status() { return m_status.load(); }
 
   inline void set_status(BackgroundTaskStatus status) { m_status = status; }
 

@@ -6,12 +6,12 @@ public:
   SafeArg(const std::string& argv);
   SafeArg(const SafeArg& rhs) = delete;
   SafeArg(SafeArg&& rhs) = delete;
-  auto operator=(SafeArg&& rhs) -> SafeArg& = delete;
-  auto operator=(const SafeArg& rhs) -> SafeArg& = delete;
+  SafeArg& operator=(SafeArg&& rhs) = delete;
+  SafeArg& operator=(const SafeArg& rhs) = delete;
 
-  [[nodiscard]] auto get_argc() const -> int;
+  int get_argc() const;
 
-  [[nodiscard]] auto get_argv() const -> const char* const*;
+  const char* const* get_argv() const;
 
   ~SafeArg();
 

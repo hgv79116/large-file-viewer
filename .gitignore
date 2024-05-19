@@ -4,3 +4,5 @@ debug.txt
 /.vscode
 /cpm_modules
 .DS_Store
+target
+doc

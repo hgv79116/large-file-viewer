@@ -26,11 +26,11 @@ constexpr int32_t DEFAULT_SYNCHRONISATION_DELAY = 30;
 
 class BackgroundTaskMessageWindow final : public ftxui::ComponentBase {
 public:
-  auto Render() -> ftxui::Element override {
+  ftxui::Element Render() override {
     return ftxui::paragraph(m_message) | ftxui::color(ftxui::Color::SkyBlue1) | ftxui::bold;
   }
 
-  auto OnEvent([[maybe_unused]] ftxui::Event event) -> bool override {
+  bool OnEvent([[maybe_unused]] ftxui::Event event) override {
     // Do nothing.
     return false;
   };
@@ -39,7 +39,7 @@ public:
     // Do nothing
   }
 
-  [[nodiscard]] auto Focusable() const -> bool override { return true; }
+  [[nodiscard]] bool Focusable() const override { return true; }
 
   // APIs for state mutation by parent components and
   // updaters/synchronisers
@@ -54,12 +54,12 @@ private:
 
 class MessageWindow final : public ftxui::ComponentBase {
 public:
-  auto Render() -> ftxui::Element override {
+  ftxui::Element Render() override {
     using namespace ftxui;
     return get_formatted_message();
   }
 
-  auto OnEvent(ftxui::Event event) -> bool override {
+  bool OnEvent(ftxui::Event event) override {
     // Release lock if locking the screen and the event match
     if (m_required_response && m_required_response == event) {
       clear();
@@ -77,7 +77,7 @@ public:
     // Do nothing
   }
 
-  [[nodiscard]] auto Focusable() const -> bool override { return true; }
+  bool Focusable() const override { return true; }
 
   void warning(std::string message) {
     m_displayed_message = Message{message, MessageType::WARNING};
@@ -97,7 +97,7 @@ public:
     m_required_response.reset();
   }
 
-  auto is_locking_screen() -> bool { return m_required_response.has_value(); }
+  bool is_locking_screen() { return m_required_response.has_value(); }
 
 private:
   enum class MessageType { INFO, WARNING, ERROR };
@@ -108,9 +108,9 @@ private:
 
   std::optional<Message> m_displayed_message;
 
-  std::optional<ftxui::Event> m_required_response = {};
+  std::optional<ftxui::Event> m_required_response;
 
-  auto get_formatted_message() -> ftxui::Element {
+  ftxui::Element get_formatted_message() {
     using namespace ftxui;
     if (!m_displayed_message) {
       return text("");
@@ -137,9 +137,9 @@ public:
     init_input_field();
   }
 
-  auto OnEvent(ftxui::Event event) -> bool override { return m_input->OnEvent(event); }
+  bool OnEvent(ftxui::Event event) override { return m_input->OnEvent(event); }
 
-  auto Render() -> ftxui::Element override {
+  ftxui::Element Render() override {
     using namespace ftxui;
     return hbox({text("/"), m_input->Render()})
            | size(WidthOrHeight::HEIGHT, Constraint::GREATER_THAN, 2);
@@ -149,7 +149,7 @@ public:
     // Do nothing
   }
 
-  [[nodiscard]] auto Focusable() const -> bool override { return true; }
+  bool Focusable() const override { return true; }
 
   void clear() {
     m_input->Detach();
@@ -182,7 +182,7 @@ class EditWindow final : public ftxui::ComponentBase {
 public:
   EditWindow(std::shared_ptr<EditWindowExtractor> extractor) : m_extractor(std::move(extractor)) {}
 
-  auto Render() -> ftxui::Element override {
+  ftxui::Element Render() override {
     using namespace ftxui;
 
     // Adjust size if needed
@@ -208,7 +208,7 @@ public:
     return element;
   }
 
-  auto OnEvent(ftxui::Event event) -> bool override {
+  bool OnEvent(ftxui::Event event) override {
     using namespace ftxui;
 
     // Adjust size if needed
@@ -235,7 +235,7 @@ public:
     // Do nothing
   }
 
-  [[nodiscard]] auto Focusable() const -> bool override { return true; }
+  bool Focusable() const override { return true; }
 
 private:
   std::shared_ptr<EditWindowExtractor> m_extractor;
@@ -292,7 +292,7 @@ public:
     Add(m_command_window);
   }
 
-  auto OnEvent(ftxui::Event event) -> bool override {
+  bool OnEvent(ftxui::Event event) override {
     using namespace ftxui;
     // Handle special events
     if (event == Event::Special({0})) {
@@ -339,7 +339,7 @@ public:
     return false;
   }
 
-  auto Render() -> ftxui::Element override {
+  ftxui::Element Render() override {
     if (m_mode == Mode::VIEW) {
       // View mode
       return ftxui::vbox({m_edit_window->Render(), m_task_message_window->Render()});
@@ -358,7 +358,7 @@ public:
     // Do nothing
   }
 
-  [[nodiscard]] auto Focusable() const -> bool override { return true; }
+  bool Focusable() const override { return true; }
 
   void synchronise() {
     // Synchronise UI state with background task if needed
@@ -513,7 +513,7 @@ private:
     m_search_aborted = std::make_shared<std::atomic<bool>>(false);
   }
 
-  auto handleSearchEvents(ftxui::Event event) -> bool {
+  bool handleSearchEvents(ftxui::Event event) {
     using namespace ftxui;
 
     if (event == Event::Tab) {
@@ -533,7 +533,7 @@ private:
     return false;
   }
 
-  auto handleSearchTabEvent() -> bool {
+  bool handleSearchTabEvent() {
     int num_match = m_search_result->get_num_matches();
     BackgroundTaskStatus status = m_search_result->get_status();
     bool search_finished_or_aborted
@@ -559,7 +559,7 @@ private:
     return true;
   }
 
-  auto handleSearchReverseTabEvent() -> bool {
+  bool handleSearchReverseTabEvent() {
     int num_match = m_search_result->get_num_matches();
 
     if (num_match == 0) {

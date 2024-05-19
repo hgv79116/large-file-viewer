@@ -11,8 +11,8 @@ public:
   BackgroundTaskRunner(BackgroundTaskRunner&&) = delete;
   BackgroundTaskRunner(const BackgroundTaskRunner&) = delete;
 
-  auto operator=(BackgroundTaskRunner&&) -> BackgroundTaskRunner& = delete;
-  auto operator=(const BackgroundTaskRunner&) -> BackgroundTaskRunner& = delete;
+  BackgroundTaskRunner& operator=(BackgroundTaskRunner&&) = delete;
+  BackgroundTaskRunner& operator=(const BackgroundTaskRunner&) = delete;
 
   ~BackgroundTaskRunner();
 
@@ -20,7 +20,7 @@ public:
 
   void quit();
 
-  auto can_run_task() -> bool;
+  bool can_run_task();
 
   void run_task(std::function<void()> task);
 
@@ -32,5 +32,5 @@ private:
   std::atomic<bool> m_has_quitted;
   std::function<void()> m_queued_task;
 
-  auto get_queued_task_wait() -> std::function<void()>;
+  std::function<void()> get_queued_task_wait();
 };

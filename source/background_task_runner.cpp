@@ -1,3 +1,5 @@
+/* DEPRECATED
+
 #include <LFV/background_task_runner.hpp>
 #include <LFV/lfv_exception.hpp>
 #include <condition_variable>
@@ -67,3 +69,5 @@ std::function<void()> BackgroundTaskRunner::get_queued_task_wait() {
 }
 
 BackgroundTaskRunner::~BackgroundTaskRunner() {}
+
+*/

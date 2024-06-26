@@ -8,7 +8,7 @@
 // BMH algorithm
 
 // NOLINTBEGIN
-void search_in_stream(std::ifstream&& in, const std::string& pattern_str, std::streampos begin,
+void searchInStream(std::ifstream&& in, const std::string& pattern_str, std::streampos begin,
                       std::streampos end, int32_t match_limit, std::shared_ptr<SearchResult> result,
                       std::shared_ptr<std::atomic<bool>> aborted) {
   constexpr int MAX_ALPHABET = 1 << 8;
@@ -56,17 +56,17 @@ void search_in_stream(std::ifstream&& in, const std::string& pattern_str, std::s
   int count_match = 0;
   int update_countdown = HEAVY_CYCLE;
 
-  result->set_status(BackgroundTaskStatus::ONGOING);
+  result->setStatus(BackgroundTaskStatus::ONGOING);
 
   while (in.tellg() < end && count_match < match_limit) {
     // We update progress and check exit condition
     // every cycle/whenever a match is found to avoid overhead.
     update_countdown--;
     if (update_countdown == 0) {
-      result->set_current_pos(in.tellg());
+      result->setCurrentPos(in.tellg());
       update_countdown = HEAVY_CYCLE;
       if (*aborted) {
-        result->set_status(BackgroundTaskStatus::ABORTED);
+        result->setStatus(BackgroundTaskStatus::ABORTED);
 
         // Exit as we have handled all cleaning up.
         return;
@@ -85,7 +85,7 @@ void search_in_stream(std::ifstream&& in, const std::string& pattern_str, std::s
     int forward_steps = 1;
 
     if (same) {
-      result->add_match(in.tellg() - (std::streampos)pat_len);
+      result->addMatch(in.tellg() - (std::streampos)pat_len);
       count_match++;
 
       forward_steps = std::min(1, (int)(end - in.tellg()));
@@ -108,6 +108,6 @@ void search_in_stream(std::ifstream&& in, const std::string& pattern_str, std::s
     }
   }
 
-  result->set_status(BackgroundTaskStatus::FINISHED);
+  result->setStatus(BackgroundTaskStatus::FINISHED);
 }
 // NOLINTEND

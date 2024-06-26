@@ -2,7 +2,7 @@
 
 #include "background_task/task_logger.hpp"
 #include "background_task/background_task.hpp"
-#include "LFV/lfv_exception.hpp"
+#include "util/lfv_exception.hpp"
 
 #include <memory>
 #include <istream>
@@ -58,10 +58,15 @@ public:
   }
 
   using ResultIterator = std::vector<std::streampos>::iterator;
+  using ConstResultIterator = std::vector<std::streampos>::const_iterator;
 
   ResultIterator begin() { return _matches.begin();  }
 
   ResultIterator end() { return _matches.end();  }
+
+  ConstResultIterator cbegin() const { return _matches.cbegin();  }
+
+  ConstResultIterator cend() const  { return _matches.cend();  }
 
   // Launch the search
   void start();

@@ -1,5 +1,5 @@
 #include "search.hpp"
-#include "LFV/lfv_exception.hpp"
+#include "util/lfv_exception.hpp"
 #include <array>
 #include <iostream>
 #include <string>

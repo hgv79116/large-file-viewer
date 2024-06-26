@@ -6,8 +6,12 @@ bool SearchDispatcher::tryDispatch(std::unique_ptr<std::istream> stream_ptr, Sea
     // Might change to std::expected later for more meaningful error messages
     std::unique_lock lock{_mutex};
 
-    // Remove the current search if ended
+    // Clear the current search
     if (_search_ptr && _search_ptr->ended()) {
+      if (_th.joinable()) {
+        _th.join();
+      }
+
       _search_ptr.reset();
     }
 
@@ -16,6 +20,9 @@ bool SearchDispatcher::tryDispatch(std::unique_ptr<std::istream> stream_ptr, Sea
     }
 
     _search_ptr = std::make_unique<Search>(std::move(stream_ptr), config, std::make_unique<TaskLogger>());
+
+    _th = std::thread([this] { _search_ptr->start(); });
+
     return true;
 }
 

@@ -12,19 +12,19 @@ class SearchResult {
 public:
   SearchResult();
 
-  int get_num_matches() const;
+  int getNumMatches() const { return static_cast<int>(m_matches.size()); }
 
-  std::streampos get_match(int index) const;
+  std::streampos getMatch(int index) const;
 
-  void add_match(std::streampos pos);
+  void addMatch(std::streampos pos);
 
-  void set_current_pos(std::streampos pos) { m_current_pos = pos; }
+  void setCurrentPos(std::streampos pos) { m_current_pos = pos; }
 
-  int64_t get_current_pos() { return m_current_pos; }
+  int64_t getCurrentPos() { return m_current_pos; }
 
-  inline BackgroundTaskStatus get_status() { return m_status.load(); }
+  inline BackgroundTaskStatus getStatus() { return m_status.load(); }
 
-  inline void set_status(BackgroundTaskStatus status) { m_status = status; }
+  inline void setStatus(BackgroundTaskStatus status) { m_status = status; }
 
 private:
   std::atomic<BackgroundTaskStatus> m_status;

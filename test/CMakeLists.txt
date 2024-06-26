@@ -27,7 +27,11 @@ endif()
 
 # ---- Create binary ----
 
-file(GLOB sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp)
+file(GLOB_RECURSE sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp)
+foreach(f ${sources})
+  message("Added source file ${f}")
+endforeach()
+
 add_executable(${PROJECT_NAME} ${sources})
 target_link_libraries(${PROJECT_NAME} doctest::doctest LFV::LFV)
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17)
